@@ -1,0 +1,219 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quick Notes</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #eaf4ff;
+            margin: 0;
+            padding: 30px;
+            color: #234;
+        }
+
+        .container {
+            max-width: 750px;
+            margin: auto;
+        }
+
+        h1 {
+            color: #2878c8;
+            text-align: center;
+        }
+
+        .box, .note {
+            background: white;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 12px;
+            box-shadow: 0 3px 10px #0001;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 7px;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 7px;
+            cursor: pointer;
+            background: #2878c8;
+            color: white;
+            margin: 4px;
+        }
+
+        .delete {
+            background: #e05252;
+        }
+
+        .pin {
+            background: #e4a62b;
+        }
+
+        #notes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .note {
+            margin: 0;
+            overflow-wrap: anywhere;
+        }
+
+        @media(max-width: 500px) {
+            body { padding: 12px; }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>📝 Quick Notes</h1>
+    <p style="text-align:center">Save your thoughts in one place!</p>
+
+    <div class="box">
+
+        <h3>Create a Note</h3>
+
+        <input id="title" placeholder="Enter note title">
+
+        <textarea id="content" placeholder="Write your note..."></textarea>
+
+        <button onclick="addNote()">+ Add Note</button>
+
+    </div>
+
+    <div class="box">
+        <h3>My Notes</h3>
+        <input id="search" placeholder="Search notes..." oninput="showNotes()">
+        <div id="notes"></div>
+    </div>
+
+</div>
+
+<script>
+
+let allNotes = [];
+
+async function showNotes() {
+
+    const response = await fetch("/notes");
+    allNotes = await response.json();
+
+    const search = document.getElementById("search").value.toLowerCase();
+
+    const area = document.getElementById("notes");
+    area.innerHTML = "";
+
+    allNotes
+        .filter(n => n.title.toLowerCase().includes(search) ||
+                     n.content.toLowerCase().includes(search))
+        .sort((a, b) => Number(b.pinned) - Number(a.pinned))
+        .forEach(n => {
+
+            const card = document.createElement("div");
+            card.className = "note";
+
+            const heading = document.createElement("h3");
+            heading.textContent = (n.pinned ? "📌 " : "") + n.title;
+
+            const content = document.createElement("p");
+            content.textContent = n.content;
+
+            const date = document.createElement("small");
+            date.textContent = n.date;
+
+            const edit = document.createElement("button");
+            edit.textContent = "✏️ Edit";
+            edit.onclick = () => editNote(n);
+
+            const pin = document.createElement("button");
+            pin.className = "pin";
+            pin.textContent = n.pinned ? "Unpin" : "Pin";
+            pin.onclick = () => pinNote(n.id);
+
+            const del = document.createElement("button");
+            del.className = "delete";
+            del.textContent = "Delete";
+            del.onclick = () => deleteNote(n.id);
+
+            card.append(heading, content, date, edit, pin, del);
+            area.appendChild(card);
+        });
+}
+
+async function addNote() {
+
+    const title = document.getElementById("title").value.trim();
+    const content = document.getElementById("content").value.trim();
+
+    if (!title || !content) {
+        alert("Please enter title and content");
+        return;
+    }
+
+    await fetch("/notes", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({title, content})
+    });
+
+    document.getElementById("title").value = "";
+    document.getElementById("content").value = "";
+
+    showNotes();
+}
+
+async function editNote(note) {
+
+    const title = prompt("Enter new title:", note.title);
+    if (title === null) return;
+
+    const content = prompt("Enter new content:", note.content);
+    if (content === null) return;
+
+    if (!title.trim() || !content.trim()) {
+        alert("Fields cannot be empty");
+        return;
+    }
+
+    await fetch("/notes/" + note.id, {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({title, content})
+    });
+
+    showNotes();
+}
+
+async function pinNote(id) {
+
+    await fetch("/notes/" + id, {method: "PATCH"});
+    showNotes();
+}
+
+async function deleteNote(id) {
+
+    if (!confirm("Delete this note?")) return;
+
+    await fetch("/notes/" + id, {method: "DELETE"});
+    showNotes();
+}
+
+showNotes();
+
+</script>
+
+</body>
+</html>
